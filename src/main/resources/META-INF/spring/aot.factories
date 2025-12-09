@@ -1,0 +1,2 @@
+org.springframework.beans.factory.aot.BeanFactoryInitializationAotProcessor=\
+br.com.firstsoft.shapr.cms.aot.CollectionAotProcessor
