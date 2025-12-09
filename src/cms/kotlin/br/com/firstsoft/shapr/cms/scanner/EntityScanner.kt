@@ -40,16 +40,22 @@ object EntityScanner {
     private fun createMetadata(clazz: KClass<*>, collection: Collection): CollectionMetadata {
         val entityName = clazz.simpleName ?: throw IllegalStateException("Entity class must have a name")
         val idType = findIdType(clazz)
-        val path = collection.path.ifEmpty { pluralize(entityName).lowercase() }
+        val path = collection.name.ifEmpty { pluralize(entityName).lowercase() }
 
         return CollectionMetadata(
             entityClass = clazz,
             entityName = entityName,
             idType = idType,
             path = path,
-            auth = collection.auth
+            createRoles = normalize(collection.createAuth),
+            readRoles = normalize(collection.readAuth),
+            updateRoles = normalize(collection.updateAuth),
+            deleteRoles = normalize(collection.deleteAuth)
         )
     }
+
+    private fun normalize(auth: Array<String>): List<String> =
+        if (auth.isEmpty()) listOf("admin") else auth.toList()
 
     private fun findIdType(clazz: KClass<*>): KClass<*> {
         val idProperty = clazz.memberProperties.find { prop ->

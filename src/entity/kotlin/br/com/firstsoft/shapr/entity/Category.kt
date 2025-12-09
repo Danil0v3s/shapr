@@ -7,7 +7,7 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 
 @Entity
-@Collection  // Will auto-pluralize to "categories"
+@Collection(readAuth = ["*"])  // Public read, admin-only for create/update/delete
 data class Category(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

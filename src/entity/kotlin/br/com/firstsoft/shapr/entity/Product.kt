@@ -7,7 +7,7 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 
 @Entity
-@Collection
+@Collection  // Admin-only (default) for all operations
 data class Product(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

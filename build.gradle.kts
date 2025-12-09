@@ -31,13 +31,14 @@ repositories {
 val generatedSourceDir = layout.buildDirectory.dir("generated/sources/cms")
 
 // Source sets with proper compilation order:
-// 1. cms - @Collection annotation (no dependencies)
+// 1. cms - CMS framework (annotation, auth, config, scanner)
 // 2. entity - Entity classes (depends on cms)
-// 3. main - Framework + generated code (depends on cms + entity)
+// 3. main - Application + generated code (depends on cms + entity)
 sourceSets {
-	// CMS annotation source set - compiles first
+	// CMS framework source set - compiles first
 	create("cms") {
 		kotlin.srcDir("src/cms/kotlin")
+		compileClasspath += configurations.compileClasspath.get()
 	}
 	
 	// Entity source set - compiles second
@@ -110,6 +111,12 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
+	
+	// CMS framework source set dependencies
+	"cmsImplementation"("org.springframework.boot:spring-boot-starter-data-jpa")
+	"cmsImplementation"("org.springframework.boot:spring-boot-starter-security")
+	"cmsImplementation"("org.springframework:spring-context")
+	"cmsImplementation"("org.jetbrains.kotlin:kotlin-reflect")
 	
 	// Entity source set dependencies
 	"entityImplementation"("org.springframework.boot:spring-boot-starter-data-jpa")

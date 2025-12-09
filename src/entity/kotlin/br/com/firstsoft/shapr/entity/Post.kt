@@ -8,7 +8,12 @@ import jakarta.persistence.Id
 import java.time.Instant
 
 @Entity
-@Collection(path = "posts")
+@Collection(
+    name = "posts",
+    readAuth = ["*"],
+    updateAuth = ["editor"],
+    deleteAuth = ["admin"]
+)
 data class Post(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
