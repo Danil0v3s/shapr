@@ -6,7 +6,22 @@ repositories {
     mavenCentral()
 }
 
+// Include DSL sources in buildSrc
+sourceSets {
+    main {
+        kotlin.srcDir("../shapr-dsl/src/main/kotlin")
+    }
+}
+
 dependencies {
-    implementation("org.ow2.asm:asm:9.7")
-    implementation("org.ow2.asm:asm-commons:9.7")
+    implementation("com.squareup:kotlinpoet:1.18.1")
+}
+
+gradlePlugin {
+    plugins {
+        create("shaprCodegen") {
+            id = "br.com.firstsoft.shapr.codegen"
+            implementationClass = "br.com.firstsoft.shapr.codegen.ShaprCodegenPlugin"
+        }
+    }
 }
