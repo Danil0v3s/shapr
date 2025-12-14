@@ -28,7 +28,7 @@ import kotlin.reflect.KClass
  * Supports where clauses, pagination, and sorting.
  */
 @Service
-class ShaprQueryService(
+open class ShaprQueryService(
     private val entityManager: EntityManager,
     private val collectionRegistry: CollectionRegistry,
     private val objectMapper: ObjectMapper,
@@ -36,7 +36,44 @@ class ShaprQueryService(
 ) {
     
     /**
-     * Find documents using DSL builder.
+     * Find documents using entity class.
+     * The collection slug is automatically resolved from the entity class.
+     * 
+     * Example:
+     * ```kotlin
+     * val posts = queryService.find(Post::class) {
+     *     where {
+     *         field("title") {
+     *             equals("My Post")
+     *         }
+     *     }
+     *     limit = 10
+     *     page = 1
+     * }
+     * ```
+     * 
+     * @param T The entity type (e.g., Post, Category)
+     * @param entityClass The entity class (e.g., Post::class)
+     * @param block DSL builder for query options (collection is auto-resolved)
+     * @return Paginated results matching Payload format
+     */
+    fun <T : Any> find(entityClass: KClass<T>, block: FindOptionsBuilder.() -> Unit): PaginatedDocs<T> {
+        val collection = collectionRegistry.getByEntityClass(entityClass.java)
+            ?: throw IllegalArgumentException(
+                "Collection not found for entity class '${entityClass.simpleName}'. " +
+                "Make sure the entity class name matches a collection name."
+            )
+        
+        val options = findOptions {
+            this.collection = collection.slug
+            block()
+        }
+        
+        return find(entityClass, options)
+    }
+    
+    /**
+     * Find documents using DSL builder (legacy method with explicit collection).
      * 
      * Example:
      * ```kotlin
@@ -112,7 +149,7 @@ class ShaprQueryService(
      * @param options Query options (where, pagination, sorting)
      * @return Paginated results matching Payload format
      */
-    private fun <T : Any> find(
+    fun <T : Any> find(
         entityClass: KClass<T>,
         options: FindOptions
     ): PaginatedDocs<T> {
