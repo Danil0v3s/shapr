@@ -18,7 +18,7 @@ val collections = shapr {
         slug = "posts"
         
         access {
-            create = roles("admin", "editor")
+            create = public()
             read = public()
             update = roles("editor")
             delete = roles("admin")
@@ -69,7 +69,7 @@ val collections = shapr {
         slug = "products"
         
         access {
-            create = roles("admin")
+            create = public()
             read = public()
             update = roles("admin")
             delete = roles("admin")

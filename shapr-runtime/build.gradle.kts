@@ -26,4 +26,8 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-security")
     api("org.springframework:spring-context")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    
+    // Jackson for JSON serialization
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 }
