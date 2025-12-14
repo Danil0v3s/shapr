@@ -23,11 +23,16 @@ class ControllerGenerator(private val basePackage: String) {
     private val deleteMappingAnnotation = ClassName("org.springframework.web.bind.annotation", "DeleteMapping")
     private val pathVariableAnnotation = ClassName("org.springframework.web.bind.annotation", "PathVariable")
     private val requestBodyAnnotation = ClassName("org.springframework.web.bind.annotation", "RequestBody")
+    private val autowiredAnnotation = ClassName("org.springframework.beans.factory.annotation", "Autowired")
     private val responseEntityClass = ClassName("org.springframework.http", "ResponseEntity")
     
     // Shapr runtime classes
     private val authUtilClass = ClassName("br.com.firstsoft.shapr.runtime.auth", "AuthUtil")
     private val accessRuleClass = ClassName("br.com.firstsoft.shapr.dsl", "AccessRule")
+    private val hookExecutorClass = ClassName("br.com.firstsoft.shapr.runtime.hooks", "HookExecutor")
+    private val hookContextClass = ClassName("br.com.firstsoft.shapr.dsl.hooks", "DefaultHookContext")
+    private val hookOperationTypeClass = ClassName("br.com.firstsoft.shapr.dsl.hooks", "HookOperationType")
+    private val shaprConfigClass = ClassName("br.com.firstsoft.shapr.dsl", "ShaprConfig")
     
     fun generate(collection: CollectionDefinition): GeneratedFile {
         val entityClassName = slugToClassName(collection.slug)
@@ -45,17 +50,36 @@ class ControllerGenerator(private val basePackage: String) {
                     .build()
             )
         
-        // Constructor with repository injection
-        classBuilder.primaryConstructor(
-            FunSpec.constructorBuilder()
-                .addParameter("repository", repositoryType)
-                .build()
-        )
+        // Constructor with dependencies injection
+        val constructorBuilder = FunSpec.constructorBuilder()
+            .addAnnotation(autowiredAnnotation)
+            .addParameter("repository", repositoryType)
+            .addParameter("hookExecutor", hookExecutorClass.copy(nullable = true))
+            .addParameter("config", shaprConfigClass)
+        
+        classBuilder.primaryConstructor(constructorBuilder.build())
         
         // Repository property
         classBuilder.addProperty(
             PropertySpec.builder("repository", repositoryType)
                 .initializer("repository")
+                .addModifiers(KModifier.PRIVATE)
+                .build()
+        )
+        
+        // HookExecutor property
+        classBuilder.addProperty(
+            PropertySpec.builder("hookExecutor", hookExecutorClass.copy(nullable = true))
+                .initializer("hookExecutor")
+                .addModifiers(KModifier.PRIVATE)
+                .build()
+        )
+        
+        // Collection property
+        val collectionDefClass = ClassName("br.com.firstsoft.shapr.dsl", "CollectionDefinition")
+        classBuilder.addProperty(
+            PropertySpec.builder("collection", collectionDefClass.copy(nullable = true))
+                .initializer("config.collections.find { it.slug == %S }", collection.slug)
                 .addModifiers(KModifier.PRIVATE)
                 .build()
         )
@@ -86,7 +110,18 @@ class ControllerGenerator(private val basePackage: String) {
             .addAnnotation(getMappingAnnotation)
             .returns(listType)
             .addStatement("%T.checkAccess(%L)", authUtilClass, accessRuleToCodeBlock(accessRule))
-            .addStatement("return repository.findAll()")
+            .addStatement("val context = %T()", hookContextClass)
+            .addStatement("val allDocs = repository.findAll()")
+            .beginControlFlow("return allDocs.map { doc ->")
+            .addStatement("var processedDoc = doc")
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("processedDoc = hookExecutor?.executeBeforeRead(coll, context, processedDoc) ?: processedDoc")
+            .endControlFlow()
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("processedDoc = hookExecutor?.executeAfterRead(coll, context, processedDoc, findMany = true) ?: processedDoc")
+            .endControlFlow()
+            .addStatement("processedDoc")
+            .endControlFlow()
             .build()
     }
     
@@ -106,9 +141,19 @@ class ControllerGenerator(private val basePackage: String) {
             )
             .returns(responseType)
             .addStatement("%T.checkAccess(%L)", authUtilClass, accessRuleToCodeBlock(accessRule))
+            .addStatement("val context = %T()", hookContextClass)
             .addCode("""
                 |return repository.findById(id)
-                |    .map { %T.ok(it) }
+                |    .map { doc ->
+                |        var processedDoc = doc
+                |        collection?.let { coll ->
+                |            processedDoc = hookExecutor?.executeBeforeRead(coll, context, processedDoc) ?: processedDoc
+                |        }
+                |        collection?.let { coll ->
+                |            processedDoc = hookExecutor?.executeAfterRead(coll, context, processedDoc, findMany = false) ?: processedDoc
+                |        }
+                |        %T.ok(processedDoc)
+                |    }
                 |    .orElse(%T.notFound().build())
                 |""".trimMargin(), responseEntityClass, responseEntityClass)
             .build()
@@ -124,7 +169,29 @@ class ControllerGenerator(private val basePackage: String) {
             )
             .returns(entityType)
             .addStatement("%T.checkAccess(%L)", authUtilClass, accessRuleToCodeBlock(accessRule))
-            .addStatement("return repository.save(entity)")
+            .addStatement("val context = %T()", hookContextClass)
+            .addStatement("var data = entity")
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("val beforeOpArgs = hookExecutor?.executeBeforeOperation(coll, %T.CREATE, context, data = data)", hookOperationTypeClass)
+            .beginControlFlow("if (beforeOpArgs == null)")
+            .addStatement("throw IllegalStateException(\"Operation cancelled by beforeOperation hook\")")
+            .endControlFlow()
+            .addStatement("data = beforeOpArgs.data ?: data")
+            .endControlFlow()
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("val validatedData = hookExecutor?.executeBeforeValidate(coll, %T.CREATE, context, data)", hookOperationTypeClass)
+            .beginControlFlow("if (validatedData != null)")
+            .addStatement("data = validatedData")
+            .endControlFlow()
+            .endControlFlow()
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("data = hookExecutor?.executeBeforeChange(coll, %T.CREATE, context, data) ?: data", hookOperationTypeClass)
+            .endControlFlow()
+            .addStatement("val savedDoc = repository.save(data)")
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("return hookExecutor?.executeAfterChange(coll, %T.CREATE, context, data, savedDoc) ?: savedDoc", hookOperationTypeClass)
+            .endControlFlow()
+            .addStatement("return savedDoc")
             .build()
     }
     
@@ -149,8 +216,32 @@ class ControllerGenerator(private val basePackage: String) {
             )
             .returns(responseType)
             .addStatement("%T.checkAccess(%L)", authUtilClass, accessRuleToCodeBlock(accessRule))
+            .addStatement("val context = %T()", hookContextClass)
             .beginControlFlow("return if (repository.existsById(id))")
-            .addStatement("%T.ok(repository.save(entity))", responseEntityClass)
+            .addStatement("val originalDoc = repository.findById(id).orElse(null)")
+            .addStatement("var data = entity")
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("val beforeOpArgs = hookExecutor?.executeBeforeOperation(coll, %T.UPDATE, context, data = data, id = id)", hookOperationTypeClass)
+            .beginControlFlow("if (beforeOpArgs == null)")
+            .addStatement("throw IllegalStateException(\"Operation cancelled by beforeOperation hook\")")
+            .endControlFlow()
+            .addStatement("data = beforeOpArgs.data ?: data")
+            .endControlFlow()
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("val validatedData = hookExecutor?.executeBeforeValidate(coll, %T.UPDATE, context, data, originalDoc)", hookOperationTypeClass)
+            .beginControlFlow("if (validatedData != null)")
+            .addStatement("data = validatedData")
+            .endControlFlow()
+            .endControlFlow()
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("data = hookExecutor?.executeBeforeChange(coll, %T.UPDATE, context, data, originalDoc) ?: data", hookOperationTypeClass)
+            .endControlFlow()
+            .addStatement("val savedDoc = repository.save(data)")
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("val processedDoc = hookExecutor?.executeAfterChange(coll, %T.UPDATE, context, data, savedDoc, originalDoc) ?: savedDoc", hookOperationTypeClass)
+            .addStatement("%T.ok(processedDoc)", responseEntityClass)
+            .endControlFlow()
+            .addStatement("%T.ok(savedDoc)", responseEntityClass)
             .nextControlFlow("else")
             .addStatement("%T.notFound().build()", responseEntityClass)
             .endControlFlow()
@@ -173,8 +264,18 @@ class ControllerGenerator(private val basePackage: String) {
             )
             .returns(responseType)
             .addStatement("%T.checkAccess(%L)", authUtilClass, accessRuleToCodeBlock(accessRule))
+            .addStatement("val context = %T()", hookContextClass)
             .beginControlFlow("return if (repository.existsById(id))")
+            .addStatement("val doc = repository.findById(id).orElse(null)")
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("hookExecutor?.executeBeforeDelete(coll, context, id)")
+            .endControlFlow()
             .addStatement("repository.deleteById(id)")
+            .beginControlFlow("doc?.let { deletedDoc ->")
+            .beginControlFlow("collection?.let { coll ->")
+            .addStatement("hookExecutor?.executeAfterDelete(coll, context, deletedDoc, id)")
+            .endControlFlow()
+            .endControlFlow()
             .addStatement("%T.noContent().build()", responseEntityClass)
             .nextControlFlow("else")
             .addStatement("%T.notFound().build()", responseEntityClass)

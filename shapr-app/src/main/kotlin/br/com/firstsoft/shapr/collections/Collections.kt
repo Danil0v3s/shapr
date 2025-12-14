@@ -20,8 +20,8 @@ val collections = shapr {
         access {
             create = public()
             read = public()
-            update = roles("editor")
-            delete = roles("admin")
+            update = public()
+            delete = public()
         }
         
         fields {
