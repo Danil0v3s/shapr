@@ -94,29 +94,3 @@ interface CollectionHooks<T : Any> {
         // Default: no action
     }
 }
-
-/**
- * Abstract base class for collection hooks.
- * Provides default implementations for all hooks (no-op).
- * Override only the hooks you need.
- * 
- * Example:
- * ```kotlin
- * @Component
- * class PostHooks : AbstractCollectionHooks<Post>() {
- *     override suspend fun beforeChange(args: BeforeChangeArgs<Post>): Post {
- *         return args.data.copy(updatedAt = Instant.now())
- *     }
- * }
- * ```
- */
-abstract class AbstractCollectionHooks<T : Any> : CollectionHooks<T> {
-    override suspend fun beforeOperation(args: BeforeOperationArgs<T>): BeforeOperationArgs<T>? = args
-    override suspend fun beforeValidate(args: BeforeValidateArgs<T>): T? = args.data
-    override suspend fun beforeChange(args: BeforeChangeArgs<T>): T = args.data
-    override suspend fun afterChange(args: AfterChangeArgs<T>): T = args.doc
-    override suspend fun beforeRead(args: BeforeReadArgs<T>): T = args.doc
-    override suspend fun afterRead(args: AfterReadArgs<T>): T = args.doc
-    override suspend fun beforeDelete(args: BeforeDeleteArgs) {}
-    override suspend fun afterDelete(args: AfterDeleteArgs<T>) {}
-}
