@@ -127,6 +127,9 @@ class ShaprBuilder {
  *     }
  * }
  * ```
+ * 
+ * Note: Hooks are defined as separate Spring @Component classes that implement
+ * CollectionHooks<T> and are automatically discovered at runtime.
  */
 fun shapr(block: ShaprBuilder.() -> Unit): ShaprConfig {
     return ShaprBuilder().apply(block).build()
