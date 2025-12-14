@@ -4,7 +4,6 @@ import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 
 /**
@@ -12,9 +11,11 @@ import org.gradle.api.provider.Property
  */
 interface ShaprCodegenExtension {
     /**
-     * The Kotlin file containing the collections DSL definitions.
+     * The directory containing collection DSL definition files.
+     * The plugin will automatically discover all .kt files in this directory
+     * that contain `shapr { }` blocks.
      */
-    val collectionsFile: RegularFileProperty
+    val collectionsDirectory: DirectoryProperty
     
     /**
      * The output directory for generated sources.
@@ -45,6 +46,10 @@ class ShaprCodegenPlugin : Plugin<Project> {
         // Set defaults
         extension.basePackage.convention("br.com.firstsoft.shapr.generated")
         extension.outputDir.convention(project.layout.buildDirectory.dir("generated/sources/shapr"))
+        // Default to src/main/kotlin/.../collections directory
+        extension.collectionsDirectory.convention(
+            project.layout.projectDirectory.dir("src/main/kotlin/br/com/firstsoft/shapr/collections")
+        )
         
         // Register the code generation task
         project.tasks.register("generateShaprCode", ShaprCodegenTask::class.java).configure(object : Action<ShaprCodegenTask> {
@@ -52,7 +57,7 @@ class ShaprCodegenPlugin : Plugin<Project> {
                 task.group = "shapr"
                 task.description = "Generates JPA entities, repositories, and controllers from Shapr DSL definitions"
                 
-                task.collectionsFile.set(extension.collectionsFile)
+                task.collectionsDirectory.set(extension.collectionsDirectory)
                 task.outputDir.set(extension.outputDir)
                 task.basePackage.set(extension.basePackage)
             }

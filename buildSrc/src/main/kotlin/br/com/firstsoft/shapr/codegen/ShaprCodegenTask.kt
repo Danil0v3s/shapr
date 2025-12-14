@@ -3,9 +3,9 @@ package br.com.firstsoft.shapr.codegen
 import br.com.firstsoft.shapr.codegen.generators.ControllerGenerator
 import br.com.firstsoft.shapr.codegen.generators.EntityGenerator
 import br.com.firstsoft.shapr.codegen.generators.RepositoryGenerator
+import br.com.firstsoft.shapr.dsl.ShaprConfig
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
 import java.io.File
@@ -15,9 +15,9 @@ import java.io.File
  */
 abstract class ShaprCodegenTask : DefaultTask() {
     
-    @get:InputFile
+    @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val collectionsFile: RegularFileProperty
+    abstract val collectionsDirectory: DirectoryProperty
     
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
@@ -27,17 +27,38 @@ abstract class ShaprCodegenTask : DefaultTask() {
     
     @TaskAction
     fun generate() {
-        val inputFile = collectionsFile.get().asFile
+        val collectionsDir = collectionsDirectory.get().asFile
         val outputDirectory = outputDir.get().asFile
         val pkg = basePackage.get()
         
-        logger.lifecycle("Shapr: Reading collections from ${inputFile.path}")
+        if (!collectionsDir.exists() || !collectionsDir.isDirectory) {
+            logger.warn("Shapr: Collections directory does not exist: ${collectionsDir.path}")
+            return
+        }
         
-        // Parse the DSL file to extract collection definitions
-        val config = CollectionParser.parse(inputFile.readText())
+        // Discover all Kotlin files containing 'shapr {' blocks
+        val inputFiles = collectionsDir.listFiles { file ->
+            file.isFile && file.extension == "kt" && file.readText().contains("shapr {")
+        }?.toList() ?: emptyList()
+        
+        if (inputFiles.isEmpty()) {
+            logger.warn("Shapr: No collection files found in ${collectionsDir.path}")
+            return
+        }
+        
+        logger.lifecycle("Shapr: Reading collections from ${inputFiles.size} file(s)")
+        
+        // Parse all collection files and merge them
+        val configs = inputFiles.map { file ->
+            logger.info("Shapr: Parsing ${file.path}")
+            CollectionParser.parse(file.readText())
+        }
+        
+        // Merge all configs and validate unique slugs
+        val config = ShaprConfig.mergeAll(*configs.toTypedArray())
         
         if (config.collections.isEmpty()) {
-            logger.warn("Shapr: No collections found in ${inputFile.path}")
+            logger.warn("Shapr: No collections found in any of the specified files")
             return
         }
         

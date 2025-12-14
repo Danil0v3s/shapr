@@ -49,13 +49,6 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-// Configure the Shapr code generation
-shaprCodegen {
-    collectionsFile.set(file("src/main/kotlin/br/com/firstsoft/shapr/collections/Collections.kt"))
-    outputDir.set(generatedSourceDir)
-    basePackage.set("br.com.firstsoft.shapr.generated")
-}
-
 // Ensure code generation runs before compilation
 tasks.named("compileKotlin") {
     dependsOn("generateShaprCode")

@@ -1,5 +1,7 @@
 package br.com.firstsoft.shapr.dsl
 
+import br.com.firstsoft.shapr.dsl.hooks.CollectionHooksConfig
+
 /**
  * Represents a complete collection definition.
  * This is the main data class that holds all configuration for a collection.
@@ -15,7 +17,8 @@ data class CollectionDefinition(
     val access: AccessControl = AccessControl(),
     val admin: CollectionAdminConfig = CollectionAdminConfig(),
     val timestamps: Boolean = true,
-    val softDelete: Boolean = false
+    val softDelete: Boolean = false,
+    val hooks: CollectionHooksConfig<*>? = null
 )
 
 /**
@@ -42,7 +45,60 @@ data class CollectionAdminConfig(
  */
 data class ShaprConfig(
     val collections: List<CollectionDefinition> = emptyList()
-)
+) {
+    /**
+     * Merges this config with another config, combining their collections.
+     * Validates that all slugs are unique after merging.
+     * 
+     * @param other The other ShaprConfig to merge with
+     * @return A new ShaprConfig containing all collections from both configs
+     * @throws IllegalArgumentException if duplicate slugs are found after merging
+     */
+    fun merge(other: ShaprConfig): ShaprConfig {
+        val mergedCollections = (this.collections + other.collections)
+        validateUniqueSlugs(mergedCollections)
+        return ShaprConfig(collections = mergedCollections)
+    }
+    
+    /**
+     * Merges multiple ShaprConfig instances into one.
+     * Validates that all slugs are unique after merging.
+     * 
+     * @param configs The ShaprConfig instances to merge
+     * @return A new ShaprConfig containing all collections from all configs
+     * @throws IllegalArgumentException if duplicate slugs are found after merging
+     */
+    companion object {
+        fun mergeAll(vararg configs: ShaprConfig): ShaprConfig {
+            val allCollections = configs.flatMap { it.collections }
+            validateUniqueSlugs(allCollections)
+            return ShaprConfig(collections = allCollections)
+        }
+        
+        /**
+         * Validates that all collection slugs are unique.
+         * Throws IllegalArgumentException if duplicate slugs are found.
+         */
+        private fun validateUniqueSlugs(collections: List<CollectionDefinition>) {
+            val slugCounts = collections.groupingBy { it.slug }.eachCount()
+            val duplicates = slugCounts.filter { it.value > 1 }
+            
+            if (duplicates.isNotEmpty()) {
+                val duplicateSlugs = duplicates.keys.joinToString(", ")
+                val duplicateDetails = duplicates.map { (slug, count) ->
+                    val collectionNames = collections.filter { it.slug == slug }.joinToString(", ") { it.name }
+                    "  - Slug '$slug' is used by $count collection(s): $collectionNames"
+                }.joinToString("\n")
+                
+                throw IllegalArgumentException(
+                    "Duplicate collection slugs found: $duplicateSlugs\n" +
+                    "Each collection must have a unique slug.\n" +
+                    "Duplicate details:\n$duplicateDetails"
+                )
+            }
+        }
+    }
+}
 
 /**
  * Utility function to pluralize a word.

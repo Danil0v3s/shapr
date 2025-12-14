@@ -104,31 +104,9 @@ class ShaprBuilder {
     
     internal fun build(): ShaprConfig {
         val collectionsList = collections.toList()
-        validateUniqueSlugs(collectionsList)
+        // Validation is now done at merge time, not at individual config build time
+        // This allows collections to be defined in separate files
         return ShaprConfig(collections = collectionsList)
-    }
-    
-    /**
-     * Validates that all collection slugs are unique.
-     * Throws IllegalArgumentException if duplicate slugs are found.
-     */
-    private fun validateUniqueSlugs(collections: List<CollectionDefinition>) {
-        val slugCounts = collections.groupingBy { it.slug }.eachCount()
-        val duplicates = slugCounts.filter { it.value > 1 }
-        
-        if (duplicates.isNotEmpty()) {
-            val duplicateSlugs = duplicates.keys.joinToString(", ")
-            val duplicateDetails = duplicates.map { (slug, count) ->
-                val collectionNames = collections.filter { it.slug == slug }.joinToString(", ") { it.name }
-                "  - Slug '$slug' is used by $count collection(s): $collectionNames"
-            }.joinToString("\n")
-            
-            throw IllegalArgumentException(
-                "Duplicate collection slugs found: $duplicateSlugs\n" +
-                "Each collection must have a unique slug.\n" +
-                "Duplicate details:\n$duplicateDetails"
-            )
-        }
     }
 }
 
