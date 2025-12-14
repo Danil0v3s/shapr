@@ -5,6 +5,7 @@ import './globals.css'
 import { SchemaProvider } from '@/components/schema-provider'
 import { Sidebar } from '@/components/sidebar'
 import { fetchSchema } from '@/lib/api'
+import type { SchemaResponse } from '@/types/schema'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,7 +19,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  let schema = { collections: [] }
+  let schema: SchemaResponse = { collections: [] }
   
   try {
     schema = await fetchSchema()

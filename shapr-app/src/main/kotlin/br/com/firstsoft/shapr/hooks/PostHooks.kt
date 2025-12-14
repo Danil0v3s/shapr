@@ -14,7 +14,7 @@ import java.time.Instant
  */
 @Component
 class PostHooks : AbstractCollectionHooks<Post>() {
-    
+
     /**
      * Example: Automatically set updatedAt timestamp before saving
      */
@@ -30,7 +30,7 @@ class PostHooks : AbstractCollectionHooks<Post>() {
             }
         )
     }
-    
+
     /**
      * Example: Uppercase the title before saving
      */
@@ -40,7 +40,7 @@ class PostHooks : AbstractCollectionHooks<Post>() {
             title = data.title.uppercase()
         )
     }
-    
+
     /**
      * Example: Log after a post is created or updated
      */
@@ -48,7 +48,7 @@ class PostHooks : AbstractCollectionHooks<Post>() {
         println("Post ${args.doc.id} was ${args.operation.name.lowercase()}d: ${args.doc.title}")
         return args.doc
     }
-    
+
     /**
      * Example: Increment view count when reading a post
      */
@@ -57,7 +57,7 @@ class PostHooks : AbstractCollectionHooks<Post>() {
         // For this example, we just return the document as-is
         return args.doc
     }
-    
+
     /**
      * Example: Prevent deletion of posts with high view count
      */
@@ -66,7 +66,7 @@ class PostHooks : AbstractCollectionHooks<Post>() {
         // and check its properties
         println("Attempting to delete post with id: ${args.id}")
     }
-    
+
     /**
      * Example: Log after deletion
      */

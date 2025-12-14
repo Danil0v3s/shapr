@@ -37,3 +37,20 @@ export interface ClientCollectionSchema {
 export interface SchemaResponse {
   collections: ClientCollectionSchema[]
 }
+
+export interface PaginatedDocs<T> {
+  docs: T[]
+  totalDocs: number
+  limit: number
+  totalPages: number
+  page: number | null
+  pagingCounter: number
+  hasPrevPage: boolean
+  hasNextPage: boolean
+  prevPage: number | null
+  nextPage: number | null
+}
+
+export interface DataResponse<T> {
+  data: T
+}

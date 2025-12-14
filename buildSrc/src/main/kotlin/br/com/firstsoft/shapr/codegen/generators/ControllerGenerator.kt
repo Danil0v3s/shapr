@@ -33,6 +33,8 @@ class ControllerGenerator(private val basePackage: String) {
     private val hookContextClass = ClassName("br.com.firstsoft.shapr.dsl.hooks", "DefaultHookContext")
     private val hookOperationTypeClass = ClassName("br.com.firstsoft.shapr.dsl.hooks", "HookOperationType")
     private val shaprConfigClass = ClassName("br.com.firstsoft.shapr.dsl", "ShaprConfig")
+    private val paginatedDocsClass = ClassName("br.com.firstsoft.shapr.dsl.query", "PaginatedDocs")
+    private val dataResponseClass = ClassName("br.com.firstsoft.shapr.dsl.query", "DataResponse")
     
     fun generate(collection: CollectionDefinition): GeneratedFile {
         val entityClassName = slugToClassName(collection.slug)
@@ -104,15 +106,15 @@ class ControllerGenerator(private val basePackage: String) {
     }
     
     private fun buildListMethod(entityType: ClassName, accessRule: AccessRule): FunSpec {
-        val listType = LIST.parameterizedBy(entityType)
+        val paginatedType = paginatedDocsClass.parameterizedBy(entityType)
         
         return FunSpec.builder("list")
             .addAnnotation(getMappingAnnotation)
-            .returns(listType)
+            .returns(paginatedType)
             .addStatement("%T.checkAccess(%L)", authUtilClass, accessRuleToCodeBlock(accessRule))
             .addStatement("val context = %T()", hookContextClass)
             .addStatement("val allDocs = repository.findAll()")
-            .beginControlFlow("return allDocs.map { doc ->")
+            .beginControlFlow("val processedDocs = allDocs.map { doc ->")
             .addStatement("var processedDoc = doc")
             .beginControlFlow("collection?.let { coll ->")
             .addStatement("processedDoc = hookExecutor?.executeBeforeRead(coll, context, processedDoc) ?: processedDoc")
@@ -122,11 +124,24 @@ class ControllerGenerator(private val basePackage: String) {
             .endControlFlow()
             .addStatement("processedDoc")
             .endControlFlow()
+            .addStatement("return %T(", paginatedDocsClass)
+            .addStatement("    docs = processedDocs,")
+            .addStatement("    totalDocs = processedDocs.size.toLong(),")
+            .addStatement("    limit = processedDocs.size,")
+            .addStatement("    totalPages = 1,")
+            .addStatement("    page = 1,")
+            .addStatement("    pagingCounter = 1,")
+            .addStatement("    hasPrevPage = false,")
+            .addStatement("    hasNextPage = false,")
+            .addStatement("    prevPage = null,")
+            .addStatement("    nextPage = null")
+            .addStatement(")")
             .build()
     }
     
     private fun buildGetByIdMethod(entityType: ClassName, accessRule: AccessRule): FunSpec {
-        val responseType = responseEntityClass.parameterizedBy(entityType)
+        val dataResponseType = dataResponseClass.parameterizedBy(entityType)
+        val responseType = responseEntityClass.parameterizedBy(dataResponseType)
         
         return FunSpec.builder("getById")
             .addAnnotation(
@@ -152,14 +167,17 @@ class ControllerGenerator(private val basePackage: String) {
                 |        collection?.let { coll ->
                 |            processedDoc = hookExecutor?.executeAfterRead(coll, context, processedDoc, findMany = false) ?: processedDoc
                 |        }
-                |        %T.ok(processedDoc)
+                |        %T.ok(%T(processedDoc))
                 |    }
                 |    .orElse(%T.notFound().build())
-                |""".trimMargin(), responseEntityClass, responseEntityClass)
+                |""".trimMargin(), responseEntityClass, dataResponseClass, responseEntityClass)
             .build()
     }
     
     private fun buildCreateMethod(entityType: ClassName, accessRule: AccessRule): FunSpec {
+        val dataResponseType = dataResponseClass.parameterizedBy(entityType)
+        val responseType = responseEntityClass.parameterizedBy(dataResponseType)
+        
         return FunSpec.builder("create")
             .addAnnotation(postMappingAnnotation)
             .addParameter(
@@ -167,7 +185,7 @@ class ControllerGenerator(private val basePackage: String) {
                     .addAnnotation(requestBodyAnnotation)
                     .build()
             )
-            .returns(entityType)
+            .returns(responseType)
             .addStatement("%T.checkAccess(%L)", authUtilClass, accessRuleToCodeBlock(accessRule))
             .addStatement("val context = %T()", hookContextClass)
             .addStatement("var data = entity")
@@ -189,14 +207,16 @@ class ControllerGenerator(private val basePackage: String) {
             .endControlFlow()
             .addStatement("val savedDoc = repository.save(data)")
             .beginControlFlow("collection?.let { coll ->")
-            .addStatement("return hookExecutor?.executeAfterChange(coll, %T.CREATE, context, data, savedDoc) ?: savedDoc", hookOperationTypeClass)
+            .addStatement("val processedDoc = hookExecutor?.executeAfterChange(coll, %T.CREATE, context, data, savedDoc) ?: savedDoc", hookOperationTypeClass)
+            .addStatement("return %T.ok(%T(processedDoc))", responseEntityClass, dataResponseClass)
             .endControlFlow()
-            .addStatement("return savedDoc")
+            .addStatement("return %T.ok(%T(savedDoc))", responseEntityClass, dataResponseClass)
             .build()
     }
     
     private fun buildUpdateMethod(entityType: ClassName, accessRule: AccessRule): FunSpec {
-        val responseType = responseEntityClass.parameterizedBy(entityType)
+        val dataResponseType = dataResponseClass.parameterizedBy(entityType)
+        val responseType = responseEntityClass.parameterizedBy(dataResponseType)
         
         return FunSpec.builder("update")
             .addAnnotation(
@@ -239,9 +259,9 @@ class ControllerGenerator(private val basePackage: String) {
             .addStatement("val savedDoc = repository.save(data)")
             .beginControlFlow("collection?.let { coll ->")
             .addStatement("val processedDoc = hookExecutor?.executeAfterChange(coll, %T.UPDATE, context, data, savedDoc, originalDoc) ?: savedDoc", hookOperationTypeClass)
-            .addStatement("%T.ok(processedDoc)", responseEntityClass)
+            .addStatement("return %T.ok(%T(processedDoc))", responseEntityClass, dataResponseClass)
             .endControlFlow()
-            .addStatement("%T.ok(savedDoc)", responseEntityClass)
+            .addStatement("return %T.ok(%T(savedDoc))", responseEntityClass, dataResponseClass)
             .nextControlFlow("else")
             .addStatement("%T.notFound().build()", responseEntityClass)
             .endControlFlow()

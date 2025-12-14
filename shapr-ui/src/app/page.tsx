@@ -2,10 +2,11 @@ import { Database } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { fetchSchema } from '@/lib/api'
+import type { SchemaResponse } from '@/types/schema'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
-  let schema = { collections: [] }
+  let schema: SchemaResponse = { collections: [] }
   
   try {
     schema = await fetchSchema()

@@ -75,9 +75,9 @@ export function DynamicForm({
             {field.required && <span className="ml-1 text-destructive">*</span>}
           </Label>
           {renderField(field, formData[field.name], handleChange)}
-          {field.config.maxLength && (
+          {typeof field.config.maxLength === 'number' && field.config.maxLength > 0 && (
             <p className="text-xs text-muted-foreground">
-              Max {field.config.maxLength as number} characters
+              Max {field.config.maxLength} characters
             </p>
           )}
         </div>
