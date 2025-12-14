@@ -1,6 +1,8 @@
 package br.com.firstsoft.shapr.dsl.builders
 
 import br.com.firstsoft.shapr.dsl.*
+import br.com.firstsoft.shapr.dsl.hooks.CollectionHooksBuilder
+import br.com.firstsoft.shapr.dsl.hooks.CollectionHooksConfig
 
 /**
  * Builder for access control configuration
@@ -54,6 +56,7 @@ class CollectionBuilder(private val name: String) {
     private var fields: List<FieldDefinition> = emptyList()
     private var access: AccessControl = AccessControl()
     private var admin: CollectionAdminConfig = CollectionAdminConfig()
+    private var hooks: CollectionHooksConfig<*>? = null
     
     /**
      * Define fields for this collection
@@ -76,6 +79,13 @@ class CollectionBuilder(private val name: String) {
         admin = CollectionAdminBuilder().apply(block).build()
     }
     
+    /**
+     * Define hooks for this collection
+     */
+    fun <T : Any> hooks(block: CollectionHooksBuilder<T>.() -> Unit) {
+        hooks = CollectionHooksBuilder<T>().apply(block).build()
+    }
+    
     internal fun build(): CollectionDefinition = CollectionDefinition(
         name = name,
         slug = slug,
@@ -84,7 +94,8 @@ class CollectionBuilder(private val name: String) {
         access = access,
         admin = admin,
         timestamps = timestamps,
-        softDelete = softDelete
+        softDelete = softDelete,
+        hooks = hooks
     )
 }
 

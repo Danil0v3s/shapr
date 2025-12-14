@@ -53,12 +53,26 @@ class CollectionHooksBuilder<T : Any> {
     fun beforeOperation(hook: (BeforeOperationArgs<T>) -> BeforeOperationArgs<T>?) {
         beforeOperationHooks.add(hook)
     }
+    
+    /**
+     * Add multiple beforeOperation hook functions
+     */
+    fun beforeOperation(hooks: Array<(BeforeOperationArgs<T>) -> BeforeOperationArgs<T>?>) {
+        beforeOperationHooks.addAll(hooks)
+    }
 
     /**
      * Add a beforeValidate hook function
      */
     fun beforeValidate(hook: (BeforeValidateArgs<T>) -> T?) {
         beforeValidateHooks.add(hook)
+    }
+    
+    /**
+     * Add multiple beforeValidate hook functions
+     */
+    fun beforeValidate(hooks: Array<(BeforeValidateArgs<T>) -> T?>) {
+        beforeValidateHooks.addAll(hooks)
     }
 
     /**
@@ -67,12 +81,26 @@ class CollectionHooksBuilder<T : Any> {
     fun beforeChange(hook: (BeforeChangeArgs<T>) -> T) {
         beforeChangeHooks.add(hook)
     }
+    
+    /**
+     * Add multiple beforeChange hook functions
+     */
+    fun beforeChange(hooks: Array<(BeforeChangeArgs<T>) -> T>) {
+        beforeChangeHooks.addAll(hooks)
+    }
 
     /**
      * Add an afterChange hook function
      */
     fun afterChange(hook: (AfterChangeArgs<T>) -> T) {
         afterChangeHooks.add(hook)
+    }
+    
+    /**
+     * Add multiple afterChange hook functions
+     */
+    fun afterChange(hooks: Array<(AfterChangeArgs<T>) -> T>) {
+        afterChangeHooks.addAll(hooks)
     }
 
     /**
@@ -81,12 +109,26 @@ class CollectionHooksBuilder<T : Any> {
     fun beforeRead(hook: (BeforeReadArgs<T>) -> T) {
         beforeReadHooks.add(hook)
     }
+    
+    /**
+     * Add multiple beforeRead hook functions
+     */
+    fun beforeRead(hooks: Array<(BeforeReadArgs<T>) -> T>) {
+        beforeReadHooks.addAll(hooks)
+    }
 
     /**
      * Add an afterRead hook function
      */
     fun afterRead(hook: (AfterReadArgs<T>) -> T) {
         afterReadHooks.add(hook)
+    }
+    
+    /**
+     * Add multiple afterRead hook functions
+     */
+    fun afterRead(hooks: Array<(AfterReadArgs<T>) -> T>) {
+        afterReadHooks.addAll(hooks)
     }
 
     /**
@@ -95,12 +137,26 @@ class CollectionHooksBuilder<T : Any> {
     fun beforeDelete(hook: (BeforeDeleteArgs) -> Unit) {
         beforeDeleteHooks.add(hook)
     }
+    
+    /**
+     * Add multiple beforeDelete hook functions
+     */
+    fun beforeDelete(hooks: Array<(BeforeDeleteArgs) -> Unit>) {
+        beforeDeleteHooks.addAll(hooks)
+    }
 
     /**
      * Add an afterDelete hook function
      */
     fun afterDelete(hook: (AfterDeleteArgs<T>) -> Unit) {
         afterDeleteHooks.add(hook)
+    }
+    
+    /**
+     * Add multiple afterDelete hook functions
+     */
+    fun afterDelete(hooks: Array<(AfterDeleteArgs<T>) -> Unit>) {
+        afterDeleteHooks.addAll(hooks)
     }
 
     internal fun build(): CollectionHooksConfig<T> = CollectionHooksConfig(

@@ -1,10 +1,10 @@
 package br.com.firstsoft.shapr.runtime.controller
 
 import br.com.firstsoft.shapr.dsl.query.FindOptions
+import br.com.firstsoft.shapr.dsl.query.ShaprQueryService
 import br.com.firstsoft.shapr.dsl.query.Where
 import br.com.firstsoft.shapr.runtime.auth.AuthUtil
 import br.com.firstsoft.shapr.runtime.service.CollectionRegistry
-import br.com.firstsoft.shapr.runtime.service.ShaprQueryService
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*

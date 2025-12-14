@@ -2,8 +2,10 @@ package br.com.firstsoft.shapr.runtime.hooks
 
 import br.com.firstsoft.shapr.dsl.CollectionDefinition
 import br.com.firstsoft.shapr.dsl.hooks.*
+import br.com.firstsoft.shapr.dsl.query.ShaprQueryService
 import kotlinx.coroutines.runBlocking
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 
 /**
@@ -15,7 +17,8 @@ import org.springframework.stereotype.Component
  */
 @Component
 class HookExecutor @Autowired constructor(
-    private val hookRegistry: HookRegistry
+    private val hookRegistry: HookRegistry,
+    @Lazy @Autowired(required = false) private val queryService: ShaprQueryService? = null
 ) {
     
     /**
@@ -30,14 +33,29 @@ class HookExecutor @Autowired constructor(
         id: Any? = null,
         query: Map<String, Any?>? = null
     ): BeforeOperationArgs<T>? {
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
         var args = BeforeOperationArgs(
             collection = collection,
             operation = operation,
-            context = context,
+            context = contextWithQueryService,
             data = data,
             id = id,
             query = query
         )
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks as? CollectionHooksConfig<T>
+        dslHooks?.beforeOperation?.forEach { hook ->
+            val result = hook(args)
+            if (result == null) return null // Operation cancelled
+            args = result
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)
@@ -63,14 +81,30 @@ class HookExecutor @Autowired constructor(
         data: T?,
         originalDoc: T? = null
     ): T? {
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
         var result = data
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks as? CollectionHooksConfig<T>
+        dslHooks?.beforeValidate?.forEach { hook ->
+            val hookResult = hook(BeforeValidateArgs(collection, operation, contextWithQueryService, result, originalDoc))
+            if (hookResult != null) {
+                result = hookResult
+            }
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)
         for (hook in discoveredHooks) {
             val hookResult = runBlocking {
                 (hook as CollectionHooks<T>).beforeValidate(
-                    BeforeValidateArgs(collection, operation, context, result, originalDoc)
+                    BeforeValidateArgs(collection, operation, contextWithQueryService, result, originalDoc)
                 )
             }
             if (hookResult != null) {
@@ -92,14 +126,27 @@ class HookExecutor @Autowired constructor(
         data: T,
         originalDoc: T? = null
     ): T {
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
         var result = data
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks as? CollectionHooksConfig<T>
+        dslHooks?.beforeChange?.forEach { hook ->
+            result = hook(BeforeChangeArgs(collection, operation, contextWithQueryService, result, originalDoc))
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)
         for (hook in discoveredHooks) {
             result = runBlocking {
                 (hook as CollectionHooks<T>).beforeChange(
-                    BeforeChangeArgs(collection, operation, context, result, originalDoc)
+                    BeforeChangeArgs(collection, operation, contextWithQueryService, result, originalDoc)
                 )
             }
         }
@@ -119,14 +166,27 @@ class HookExecutor @Autowired constructor(
         doc: T,
         previousDoc: T? = null
     ): T {
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
         var result = doc
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks as? CollectionHooksConfig<T>
+        dslHooks?.afterChange?.forEach { hook ->
+            result = hook(AfterChangeArgs(collection, operation, contextWithQueryService, data, result, previousDoc))
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)
         for (hook in discoveredHooks) {
             result = runBlocking {
                 (hook as CollectionHooks<T>).afterChange(
-                    AfterChangeArgs(collection, operation, context, data, result, previousDoc)
+                    AfterChangeArgs(collection, operation, contextWithQueryService, data, result, previousDoc)
                 )
             }
         }
@@ -144,14 +204,27 @@ class HookExecutor @Autowired constructor(
         doc: T,
         query: Map<String, Any?>? = null
     ): T {
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
         var result = doc
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks as? CollectionHooksConfig<T>
+        dslHooks?.beforeRead?.forEach { hook ->
+            result = hook(BeforeReadArgs(collection, contextWithQueryService, result, query))
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)
         for (hook in discoveredHooks) {
             result = runBlocking {
                 (hook as CollectionHooks<T>).beforeRead(
-                    BeforeReadArgs(collection, context, result, query)
+                    BeforeReadArgs(collection, contextWithQueryService, result, query)
                 )
             }
         }
@@ -170,14 +243,27 @@ class HookExecutor @Autowired constructor(
         findMany: Boolean = false,
         query: Map<String, Any?>? = null
     ): T {
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
         var result = doc
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks as? CollectionHooksConfig<T>
+        dslHooks?.afterRead?.forEach { hook ->
+            result = hook(AfterReadArgs(collection, contextWithQueryService, result, findMany, query))
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)
         for (hook in discoveredHooks) {
             result = runBlocking {
                 (hook as CollectionHooks<T>).afterRead(
-                    AfterReadArgs(collection, context, result, findMany, query)
+                    AfterReadArgs(collection, contextWithQueryService, result, findMany, query)
                 )
             }
         }
@@ -194,7 +280,24 @@ class HookExecutor @Autowired constructor(
         context: HookContext,
         id: Any
     ) {
-        val args = BeforeDeleteArgs(collection, context, id)
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
+        val args = BeforeDeleteArgs(collection, contextWithQueryService, id)
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks
+        if (dslHooks != null) {
+            @Suppress("UNCHECKED_CAST")
+            val typedHooks = dslHooks as? CollectionHooksConfig<*>
+            typedHooks?.beforeDelete?.forEach { hook ->
+                hook(args)
+            }
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)
@@ -221,7 +324,20 @@ class HookExecutor @Autowired constructor(
         doc: T,
         id: Any
     ) {
-        val args = AfterDeleteArgs(collection, context, doc, id)
+        // Create context with queryService
+        val contextWithQueryService = if (context.queryService == null && queryService != null) {
+            DefaultHookContext(context.customData, queryService)
+        } else {
+            context
+        }
+        
+        val args = AfterDeleteArgs(collection, contextWithQueryService, doc, id)
+        
+        // Execute DSL-registered hooks first
+        val dslHooks = collection.hooks as? CollectionHooksConfig<T>
+        dslHooks?.afterDelete?.forEach { hook ->
+            hook(args)
+        }
         
         // Get auto-discovered hooks from registry
         val discoveredHooks = hookRegistry.getHooksForCollection(collection)

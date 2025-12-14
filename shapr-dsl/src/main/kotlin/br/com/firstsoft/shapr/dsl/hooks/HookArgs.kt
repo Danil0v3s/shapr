@@ -1,6 +1,7 @@
 package br.com.firstsoft.shapr.dsl.hooks
 
 import br.com.firstsoft.shapr.dsl.CollectionDefinition
+import br.com.firstsoft.shapr.dsl.query.ShaprQueryService
 
 /**
  * Represents the operation type for hooks
@@ -23,13 +24,19 @@ interface HookContext {
      * Custom data that can be passed through hooks
      */
     val customData: Map<String, Any?>
+    
+    /**
+     * Query service for performing queries within hooks
+     */
+    val queryService: ShaprQueryService?
 }
 
 /**
  * Default implementation of HookContext
  */
 data class DefaultHookContext(
-    override val customData: Map<String, Any?> = emptyMap()
+    override val customData: Map<String, Any?> = emptyMap(),
+    override val queryService: ShaprQueryService? = null
 ) : HookContext
 
 /**

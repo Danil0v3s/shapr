@@ -2,6 +2,7 @@ package br.com.firstsoft.shapr.runtime.service
 
 import br.com.firstsoft.shapr.dsl.query.FindOptionsBuilder
 import br.com.firstsoft.shapr.dsl.query.PaginatedDocs
+import br.com.firstsoft.shapr.dsl.query.ShaprQueryService
 
 /**
  * Extension function to enable generic type inference for find operations.

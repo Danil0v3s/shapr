@@ -2,6 +2,13 @@ package br.com.firstsoft.shapr.collections
 
 import br.com.firstsoft.shapr.dsl.*
 import br.com.firstsoft.shapr.dsl.builders.*
+import br.com.firstsoft.shapr.dsl.hooks.BeforeChangeArgs
+import br.com.firstsoft.shapr.generated.entity.Post
+
+fun postBeforeChange(args: BeforeChangeArgs<Post>): Post {
+    
+    return args.data
+}
 
 /**
  * Blog-related collections (Posts, Categories)
@@ -33,6 +40,10 @@ val blogCollections = shapr {
         admin {
             useAsTitle = "title"
             defaultColumns = listOf("id", "title", "publishedAt")
+        }
+
+        hooks {
+            beforeChange(::postBeforeChange)
         }
     }
     

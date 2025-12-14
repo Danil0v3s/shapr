@@ -6,6 +6,7 @@ import br.com.firstsoft.shapr.dsl.hooks.HookContext
 import br.com.firstsoft.shapr.dsl.query.FindOptions
 import br.com.firstsoft.shapr.dsl.query.FindOptionsBuilder
 import br.com.firstsoft.shapr.dsl.query.PaginatedDocs
+import br.com.firstsoft.shapr.dsl.query.ShaprQueryService
 import br.com.firstsoft.shapr.dsl.query.Where
 import br.com.firstsoft.shapr.dsl.query.findOptions
 import br.com.firstsoft.shapr.dsl.slugToClassName
@@ -28,12 +29,12 @@ import kotlin.reflect.KClass
  * Supports where clauses, pagination, and sorting.
  */
 @Service
-open class ShaprQueryService(
+internal class ShaprQueryServiceImpl(
     private val entityManager: EntityManager,
     private val collectionRegistry: CollectionRegistry,
     private val objectMapper: ObjectMapper,
     @Autowired(required = false) private val hookExecutor: HookExecutor? = null
-) {
+) : ShaprQueryService {
     
     /**
      * Find documents using entity class.
@@ -57,7 +58,7 @@ open class ShaprQueryService(
      * @param block DSL builder for query options (collection is auto-resolved)
      * @return Paginated results matching Payload format
      */
-    fun <T : Any> find(entityClass: KClass<T>, block: FindOptionsBuilder.() -> Unit): PaginatedDocs<T> {
+    override fun <T : Any> find(entityClass: KClass<T>, block: FindOptionsBuilder.() -> Unit): PaginatedDocs<T> {
         val collection = collectionRegistry.getByEntityClass(entityClass.java)
             ?: throw IllegalArgumentException(
                 "Collection not found for entity class '${entityClass.simpleName}'. " +
@@ -92,7 +93,7 @@ open class ShaprQueryService(
      * @param block DSL builder for FindOptions
      * @return Paginated results matching Payload format
      */
-    fun find(block: FindOptionsBuilder.() -> Unit): PaginatedDocs<Any> {
+    override fun find(block: FindOptionsBuilder.() -> Unit): PaginatedDocs<Any> {
         val options = findOptions(block)
         return find(options)
     }
@@ -104,7 +105,7 @@ open class ShaprQueryService(
      * @return Paginated results matching Payload format
      */
     @Suppress("UNCHECKED_CAST")
-    fun find(options: FindOptions): PaginatedDocs<Any> {
+    override fun find(options: FindOptions): PaginatedDocs<Any> {
         val collection = collectionRegistry.getBySlug(options.collection)
             ?: throw IllegalArgumentException("Collection '${options.collection}' not found")
         
@@ -149,7 +150,7 @@ open class ShaprQueryService(
      * @param options Query options (where, pagination, sorting)
      * @return Paginated results matching Payload format
      */
-    fun <T : Any> find(
+    override fun <T : Any> find(
         entityClass: KClass<T>,
         options: FindOptions
     ): PaginatedDocs<T> {
@@ -203,7 +204,7 @@ open class ShaprQueryService(
         var docs = typedQuery.resultList
         
         // Execute hooks for each document
-        val context: HookContext = DefaultHookContext()
+        val context: HookContext = DefaultHookContext(queryService = this)
         docs = docs.map { doc ->
             var processedDoc = doc
             
