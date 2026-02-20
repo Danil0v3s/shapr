@@ -81,11 +81,22 @@ fun AccessRule.toClientString(): String = when (this) {
 fun FieldType.typeName(): String = when (this) {
     is FieldType.Text -> "text"
     is FieldType.Textarea -> "textarea"
+    is FieldType.Code -> "code"
     is FieldType.Number -> "number"
     is FieldType.Checkbox -> "checkbox"
     is FieldType.Email -> "email"
     is FieldType.Date -> "date"
+    is FieldType.Json -> "json"
+    is FieldType.RichText -> "richText"
+    is FieldType.Point -> "point"
+    is FieldType.Select -> "select"
+    is FieldType.Radio -> "radio"
     is FieldType.Relationship -> "relationship"
+    is FieldType.Upload -> "upload"
+    is FieldType.Array -> "array"
+    is FieldType.Blocks -> "blocks"
+    is FieldType.Group -> "group"
+    is FieldType.Tab -> "tab"
 }
 
 /**
@@ -94,11 +105,22 @@ fun FieldType.typeName(): String = when (this) {
 fun FieldType.isRequired(): Boolean = when (this) {
     is FieldType.Text -> required
     is FieldType.Textarea -> required
+    is FieldType.Code -> required
     is FieldType.Number -> required
     is FieldType.Email -> required
     is FieldType.Date -> required
+    is FieldType.Json -> required
+    is FieldType.RichText -> required
+    is FieldType.Point -> required
+    is FieldType.Select -> required
+    is FieldType.Radio -> required
     is FieldType.Relationship -> required
+    is FieldType.Upload -> required
+    is FieldType.Array -> required
+    is FieldType.Blocks -> required
     is FieldType.Checkbox -> false
+    is FieldType.Group -> false
+    is FieldType.Tab -> false
 }
 
 /**
@@ -117,28 +139,102 @@ fun FieldType.toConfigMap(): Map<String, Any?> = when (this) {
     is FieldType.Text -> mapOf(
         "maxLength" to maxLength,
         "minLength" to minLength,
-        "defaultValue" to defaultValue
+        "defaultValue" to defaultValue,
+        "localized" to localized,
+        "hasMany" to hasMany
     )
     is FieldType.Textarea -> mapOf(
-        "defaultValue" to defaultValue
+        "defaultValue" to defaultValue,
+        "localized" to localized
+    )
+    is FieldType.Code -> mapOf(
+        "language" to language,
+        "localized" to localized
     )
     is FieldType.Number -> mapOf(
         "integerOnly" to integerOnly,
         "min" to min,
         "max" to max,
-        "defaultValue" to defaultValue
+        "defaultValue" to defaultValue,
+        "localized" to localized,
+        "hasMany" to hasMany
     )
     is FieldType.Checkbox -> mapOf(
-        "defaultValue" to defaultValue
+        "defaultValue" to defaultValue,
+        "localized" to localized
     )
-    is FieldType.Email -> emptyMap()
+    is FieldType.Email -> mapOf(
+        "localized" to localized
+    )
     is FieldType.Date -> mapOf(
         "dateOnly" to dateOnly,
-        "defaultNow" to defaultNow
+        "defaultNow" to defaultNow,
+        "localized" to localized
+    )
+    is FieldType.Json -> mapOf(
+        "localized" to localized
+    )
+    is FieldType.RichText -> mapOf(
+        "localized" to localized
+    )
+    is FieldType.Point -> mapOf(
+        "localized" to localized
+    )
+    is FieldType.Select -> mapOf(
+        "options" to options.map { opt ->
+            when (opt) {
+                is FieldType.SelectOption.StringOption -> opt.value
+                is FieldType.SelectOption.LabeledOption -> mapOf("value" to opt.value, "label" to opt.label)
+            }
+        },
+        "hasMany" to hasMany,
+        "defaultValue" to defaultValue,
+        "localized" to localized
+    )
+    is FieldType.Radio -> mapOf(
+        "options" to options.map { opt ->
+            when (opt) {
+                is FieldType.SelectOption.StringOption -> opt.value
+                is FieldType.SelectOption.LabeledOption -> mapOf("value" to opt.value, "label" to opt.label)
+            }
+        },
+        "defaultValue" to defaultValue,
+        "localized" to localized
     )
     is FieldType.Relationship -> mapOf(
         "relationTo" to relationTo,
-        "hasMany" to hasMany
+        "hasMany" to hasMany,
+        "localized" to localized
+    )
+    is FieldType.Upload -> mapOf(
+        "relationTo" to relationTo,
+        "hasMany" to hasMany,
+        "localized" to localized
+    )
+    is FieldType.Array -> mapOf(
+        "fields" to fields.map { it.toClientSchema() },
+        "minRows" to minRows,
+        "maxRows" to maxRows,
+        "localized" to localized
+    )
+    is FieldType.Blocks -> mapOf(
+        "blocks" to blocks.map { block ->
+            mapOf(
+                "slug" to block.slug,
+                "fields" to block.fields.map { it.toClientSchema() }
+            )
+        },
+        "minRows" to minRows,
+        "maxRows" to maxRows,
+        "localized" to localized
+    )
+    is FieldType.Group -> mapOf(
+        "fields" to fields.map { it.toClientSchema() },
+        "localized" to localized
+    )
+    is FieldType.Tab -> mapOf(
+        "fields" to fields.map { it.toClientSchema() },
+        "localized" to localized
     )
 }
 

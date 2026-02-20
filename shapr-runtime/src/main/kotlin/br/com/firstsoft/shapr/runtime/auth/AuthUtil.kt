@@ -34,7 +34,11 @@ object AuthUtil {
         val auth = SecurityContextHolder.getContext().authentication
         val userRoles = auth?.authorities?.map { it.authority } ?: listOf()
 
-        if (userRoles.none { it in roles || "ROLE_$it" in roles || it.removePrefix("ROLE_") in roles }) {
+        // Normalize roles to lowercase for comparison
+        val normalizedRequired = roles.map { it.lowercase().removePrefix("role_") }
+        val normalizedUser = userRoles.map { it.lowercase().removePrefix("role_") }
+
+        if (normalizedRequired.none { it in normalizedUser }) {
             throw AccessDeniedException("Missing required role: $roles")
         }
     }

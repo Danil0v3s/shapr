@@ -1,8 +1,6 @@
 package br.com.firstsoft.shapr.codegen
 
-import br.com.firstsoft.shapr.codegen.generators.ControllerGenerator
-import br.com.firstsoft.shapr.codegen.generators.EntityGenerator
-import br.com.firstsoft.shapr.codegen.generators.RepositoryGenerator
+import br.com.firstsoft.shapr.codegen.generators.*
 import br.com.firstsoft.shapr.dsl.ShaprConfig
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
@@ -36,22 +34,27 @@ abstract class ShaprCodegenTask : DefaultTask() {
             return
         }
         
-        // Discover all Kotlin files containing 'shapr {' blocks
+        // Discover all Kotlin files with collection definitions
         val inputFiles = collectionsDir.listFiles { file ->
-            file.isFile && file.extension == "kt" && file.readText().contains("shapr {")
+            file.isFile && file.extension == "kt"
         }?.toList() ?: emptyList()
-        
+
         if (inputFiles.isEmpty()) {
             logger.warn("Shapr: No collection files found in ${collectionsDir.path}")
             return
         }
-        
+
         logger.lifecycle("Shapr: Reading collections from ${inputFiles.size} file(s)")
-        
-        // Parse all collection files and merge them
-        val configs = inputFiles.map { file ->
+
+        // Parse all collection files (supports both DSL and annotated classes)
+        val configs = inputFiles.mapNotNull { file ->
+            val content = file.readText()
             logger.info("Shapr: Parsing ${file.path}")
-            CollectionParser.parse(file.readText())
+            when {
+                content.contains("@ShaprCol") -> ClassParser.parse(content)
+                content.contains("shapr {") -> CollectionParser.parse(content)
+                else -> null
+            }
         }
         
         // Merge all configs and validate unique slugs
@@ -68,20 +71,48 @@ abstract class ShaprCodegenTask : DefaultTask() {
         val entityGenerator = EntityGenerator(pkg)
         val repositoryGenerator = RepositoryGenerator(pkg)
         val controllerGenerator = ControllerGenerator(pkg)
-        
+        val localesTableGenerator = LocalesTableGenerator(pkg)
+        val arrayTableGenerator = ArrayTableGenerator(pkg)
+        val blockTableGenerator = BlockTableGenerator(pkg)
+        val relsTableGenerator = RelsTableGenerator(pkg)
+
         config.collections.forEach { collection ->
             logger.lifecycle("Shapr: Generating code for collection '${collection.name}'")
-            
-            // Generate entity
+
+            // Generate main entity
             writeGeneratedFile(outputDirectory, entityGenerator.generate(collection))
-            
+
             // Generate repository
             writeGeneratedFile(outputDirectory, repositoryGenerator.generate(collection))
-            
+
             // Generate controller
             writeGeneratedFile(outputDirectory, controllerGenerator.generate(collection))
+
+            // Generate _locales table (if collection has localized fields)
+            localesTableGenerator.generate(collection)?.let {
+                writeGeneratedFile(outputDirectory, it)
+                logger.info("Shapr: Generated locales table for '${collection.name}'")
+            }
+
+            // Generate array tables (one per array field)
+            arrayTableGenerator.generate(collection).forEach {
+                writeGeneratedFile(outputDirectory, it)
+                logger.info("Shapr: Generated array table: ${it.fileName}")
+            }
+
+            // Generate block tables (one per block type)
+            blockTableGenerator.generate(collection).forEach {
+                writeGeneratedFile(outputDirectory, it)
+                logger.info("Shapr: Generated block table: ${it.fileName}")
+            }
+
+            // Generate _rels table (if collection has polymorphic/hasMany relationships)
+            relsTableGenerator.generate(collection)?.let {
+                writeGeneratedFile(outputDirectory, it)
+                logger.info("Shapr: Generated rels table for '${collection.name}'")
+            }
         }
-        
+
         logger.lifecycle("Shapr: Code generation complete")
     }
     

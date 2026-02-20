@@ -138,11 +138,23 @@ class EntityGenerator(private val basePackage: String) {
         when (val type = field.type) {
             is FieldType.Text -> addTextProperty(field.name, type, constructorBuilder, classBuilder)
             is FieldType.Textarea -> addTextareaProperty(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.Code -> addCodeProperty(field.name, type, constructorBuilder, classBuilder)
             is FieldType.Number -> addNumberProperty(field.name, type, constructorBuilder, classBuilder)
             is FieldType.Checkbox -> addCheckboxProperty(field.name, type, constructorBuilder, classBuilder)
             is FieldType.Email -> addEmailProperty(field.name, type, constructorBuilder, classBuilder)
             is FieldType.Date -> addDateProperty(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.Json -> addJsonProperty(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.RichText -> addRichTextProperty(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.Point -> addPointProperty(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.Select -> addSelectProperty(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.Radio -> addRadioProperty(field.name, type, constructorBuilder, classBuilder)
             is FieldType.Relationship -> addRelationshipProperty(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.Upload -> addUploadProperty(field.name, type, constructorBuilder, classBuilder)
+            // Complex types - require separate table generation (TODO: implement in EntityGenerator)
+            is FieldType.Array -> {} // Arrays create separate tables, handled by ArrayTableGenerator
+            is FieldType.Blocks -> {} // Blocks create separate tables, handled by BlockTableGenerator
+            is FieldType.Group -> addGroupFields(field.name, type, constructorBuilder, classBuilder)
+            is FieldType.Tab -> addTabFields(field.name, type, constructorBuilder, classBuilder)
         }
     }
     
@@ -302,13 +314,16 @@ class EntityGenerator(private val basePackage: String) {
         constructorBuilder: FunSpec.Builder,
         classBuilder: TypeSpec.Builder
     ) {
-        val relatedClassName = slugToClassName(type.relationTo)
+        // For polymorphic relationships (multiple relationTo), we need a _rels table
+        // For now, use the first relation target for simple cases
+        val primaryRelation = type.relationTo.first()
+        val relatedClassName = slugToClassName(primaryRelation)
         val relatedType = ClassName(entityPackage, relatedClassName)
-        
-        if (type.hasMany) {
-            // ManyToMany relationship
+
+        if (type.hasMany || type.relationTo.size > 1) {
+            // ManyToMany relationship or polymorphic - uses _rels table pattern
             val setType = SET.parameterizedBy(relatedType)
-            
+
             constructorBuilder.addParameter(
                 ParameterSpec.builder(name, setType).defaultValue("emptySet()").build()
             )
@@ -318,15 +333,15 @@ class EntityGenerator(private val basePackage: String) {
                     .addAnnotation(manyToManyAnnotation)
                     .addAnnotation(
                         AnnotationSpec.builder(joinTableAnnotation)
-                            .addMember("name = %S", "${name}_${type.relationTo}")
+                            .addMember("name = %S", "${name}_${primaryRelation}")
                             .build()
                     )
                     .build()
             )
         } else {
-            // ManyToOne relationship
+            // ManyToOne relationship - simple FK column
             val nullableType = relatedType.copy(nullable = !type.required)
-            
+
             constructorBuilder.addParameter(
                 ParameterSpec.builder(name, nullableType).defaultValue("null").build()
             )
@@ -346,6 +361,239 @@ class EntityGenerator(private val basePackage: String) {
                     )
                     .build()
             )
+        }
+    }
+
+    private fun addCodeProperty(
+        name: String,
+        type: FieldType.Code,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        val kotlinType = String::class.asTypeName().copy(nullable = !type.required)
+        val defaultValue = if (type.required) "\"\"" else "null"
+
+        constructorBuilder.addParameter(
+            ParameterSpec.builder(name, kotlinType).defaultValue(defaultValue).build()
+        )
+        classBuilder.addProperty(
+            PropertySpec.builder(name, kotlinType)
+                .initializer(name)
+                .addAnnotation(
+                    AnnotationSpec.builder(columnAnnotation)
+                        .addMember("columnDefinition = %S", "TEXT")
+                        .addMember("nullable = %L", !type.required)
+                        .build()
+                )
+                .build()
+        )
+    }
+
+    private fun addJsonProperty(
+        name: String,
+        type: FieldType.Json,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        val kotlinType = String::class.asTypeName().copy(nullable = !type.required)
+        val defaultValue = if (type.required) "\"{}\"" else "null"
+
+        constructorBuilder.addParameter(
+            ParameterSpec.builder(name, kotlinType).defaultValue(defaultValue).build()
+        )
+        classBuilder.addProperty(
+            PropertySpec.builder(name, kotlinType)
+                .initializer(name)
+                .addAnnotation(
+                    AnnotationSpec.builder(columnAnnotation)
+                        .addMember("columnDefinition = %S", "JSONB")
+                        .addMember("nullable = %L", !type.required)
+                        .build()
+                )
+                .build()
+        )
+    }
+
+    private fun addRichTextProperty(
+        name: String,
+        type: FieldType.RichText,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        val kotlinType = String::class.asTypeName().copy(nullable = !type.required)
+        val defaultValue = if (type.required) "\"{}\"" else "null"
+
+        constructorBuilder.addParameter(
+            ParameterSpec.builder(name, kotlinType).defaultValue(defaultValue).build()
+        )
+        classBuilder.addProperty(
+            PropertySpec.builder(name, kotlinType)
+                .initializer(name)
+                .addAnnotation(
+                    AnnotationSpec.builder(columnAnnotation)
+                        .addMember("columnDefinition = %S", "JSONB")
+                        .addMember("nullable = %L", !type.required)
+                        .build()
+                )
+                .build()
+        )
+    }
+
+    private fun addPointProperty(
+        name: String,
+        type: FieldType.Point,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        // Point type stored as PostGIS geometry - for now store as String representation
+        val kotlinType = String::class.asTypeName().copy(nullable = !type.required)
+
+        constructorBuilder.addParameter(
+            ParameterSpec.builder(name, kotlinType).defaultValue("null").build()
+        )
+        classBuilder.addProperty(
+            PropertySpec.builder(name, kotlinType)
+                .initializer(name)
+                .addAnnotation(
+                    AnnotationSpec.builder(columnAnnotation)
+                        .addMember("columnDefinition = %S", "geometry(Point,4326)")
+                        .addMember("nullable = %L", !type.required)
+                        .build()
+                )
+                .build()
+        )
+    }
+
+    private fun addSelectProperty(
+        name: String,
+        type: FieldType.Select,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        // For hasMany selects, a separate table should be created
+        // For single select, store as VARCHAR (enum name)
+        if (!type.hasMany) {
+            val kotlinType = String::class.asTypeName().copy(nullable = !type.required)
+            val defaultValue = type.defaultValue?.let { "\"$it\"" } ?: if (type.required) "\"\"" else "null"
+
+            constructorBuilder.addParameter(
+                ParameterSpec.builder(name, kotlinType).defaultValue(defaultValue).build()
+            )
+            classBuilder.addProperty(
+                PropertySpec.builder(name, kotlinType)
+                    .initializer(name)
+                    .addAnnotation(
+                        AnnotationSpec.builder(columnAnnotation)
+                            .addMember("nullable = %L", !type.required)
+                            .build()
+                    )
+                    .build()
+            )
+        }
+        // hasMany selects are handled by separate table generators
+    }
+
+    private fun addRadioProperty(
+        name: String,
+        type: FieldType.Radio,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        val kotlinType = String::class.asTypeName().copy(nullable = !type.required)
+        val defaultValue = type.defaultValue?.let { "\"$it\"" } ?: if (type.required) "\"\"" else "null"
+
+        constructorBuilder.addParameter(
+            ParameterSpec.builder(name, kotlinType).defaultValue(defaultValue).build()
+        )
+        classBuilder.addProperty(
+            PropertySpec.builder(name, kotlinType)
+                .initializer(name)
+                .addAnnotation(
+                    AnnotationSpec.builder(columnAnnotation)
+                        .addMember("nullable = %L", !type.required)
+                        .build()
+                )
+                .build()
+        )
+    }
+
+    private fun addUploadProperty(
+        name: String,
+        type: FieldType.Upload,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        // Upload is similar to relationship, but targets media collections
+        val primaryRelation = type.relationTo.first()
+        val relatedClassName = slugToClassName(primaryRelation)
+        val relatedType = ClassName(entityPackage, relatedClassName)
+
+        if (type.hasMany || type.relationTo.size > 1) {
+            val setType = SET.parameterizedBy(relatedType)
+
+            constructorBuilder.addParameter(
+                ParameterSpec.builder(name, setType).defaultValue("emptySet()").build()
+            )
+            classBuilder.addProperty(
+                PropertySpec.builder(name, setType)
+                    .initializer(name)
+                    .addAnnotation(manyToManyAnnotation)
+                    .addAnnotation(
+                        AnnotationSpec.builder(joinTableAnnotation)
+                            .addMember("name = %S", "${name}_${primaryRelation}")
+                            .build()
+                    )
+                    .build()
+            )
+        } else {
+            val nullableType = relatedType.copy(nullable = !type.required)
+
+            constructorBuilder.addParameter(
+                ParameterSpec.builder(name, nullableType).defaultValue("null").build()
+            )
+            classBuilder.addProperty(
+                PropertySpec.builder(name, nullableType)
+                    .initializer(name)
+                    .addAnnotation(
+                        AnnotationSpec.builder(manyToOneAnnotation)
+                            .addMember("fetch = %T.LAZY", fetchTypeClass)
+                            .build()
+                    )
+                    .addAnnotation(
+                        AnnotationSpec.builder(joinColumnAnnotation)
+                            .addMember("name = %S", "${name}_id")
+                            .addMember("nullable = %L", !type.required)
+                            .build()
+                    )
+                    .build()
+            )
+        }
+    }
+
+    private fun addGroupFields(
+        groupName: String,
+        type: FieldType.Group,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        // Groups flatten their fields into the parent table with a prefix
+        // This follows Payload's pattern of columnPrefix = "{groupName}_"
+        type.fields.forEach { field ->
+            val prefixedField = field.copy(name = "${groupName}_${field.name}")
+            addFieldProperty(prefixedField, constructorBuilder, classBuilder)
+        }
+    }
+
+    private fun addTabFields(
+        tabName: String,
+        type: FieldType.Tab,
+        constructorBuilder: FunSpec.Builder,
+        classBuilder: TypeSpec.Builder
+    ) {
+        // Tabs are the same as groups - flatten with prefix
+        type.fields.forEach { field ->
+            val prefixedField = field.copy(name = "${tabName}_${field.name}")
+            addFieldProperty(prefixedField, constructorBuilder, classBuilder)
         }
     }
 }
