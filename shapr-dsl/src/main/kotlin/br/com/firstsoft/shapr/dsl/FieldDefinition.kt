@@ -9,7 +9,9 @@ data class FieldDefinition(
     val type: FieldType,
     val label: String? = null,
     val description: String? = null,
-    val admin: FieldAdminConfig = FieldAdminConfig()
+    val admin: FieldAdminConfig = FieldAdminConfig(),
+    /** Field-level access control. If null, inherits from collection access. */
+    val access: FieldAccess? = null
 )
 
 /**

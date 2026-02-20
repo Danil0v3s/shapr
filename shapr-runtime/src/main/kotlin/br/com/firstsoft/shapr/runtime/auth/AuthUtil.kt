@@ -1,6 +1,10 @@
 package br.com.firstsoft.shapr.runtime.auth
 
+import br.com.firstsoft.shapr.dsl.AccessContext
+import br.com.firstsoft.shapr.dsl.AccessFunction
+import br.com.firstsoft.shapr.dsl.AccessResult
 import br.com.firstsoft.shapr.dsl.AccessRule
+import br.com.firstsoft.shapr.dsl.query.Where
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 
@@ -42,7 +46,7 @@ object AuthUtil {
             throw AccessDeniedException("Missing required role: $roles")
         }
     }
-    
+
     /**
      * Checks access based on an AccessRule from the DSL.
      * @param rule The access rule to check
@@ -56,7 +60,82 @@ object AuthUtil {
             is AccessRule.Deny -> throw AccessDeniedException("Access denied")
         }
     }
-    
+
+    /**
+     * Evaluates a dynamic access function and returns the result.
+     * @param accessFn The access function to evaluate
+     * @param id Optional document ID (for read/update/delete operations)
+     * @param doc Optional document data (for field-level access in read operations)
+     * @return AccessResult indicating whether access is allowed, denied, or filtered
+     */
+    fun evaluateAccess(
+        accessFn: AccessFunction,
+        id: Any? = null,
+        doc: Any? = null
+    ): AccessResult {
+        val context = buildAccessContext(id = id, doc = doc)
+        return accessFn(context)
+    }
+
+    /**
+     * Checks access using a dynamic access function.
+     * If the function returns a Filter (Where clause), this method only checks if access
+     * is not Deny. The actual filtering should be done by the caller.
+     *
+     * @param accessFn The access function to evaluate
+     * @param id Optional document ID
+     * @param doc Optional document data
+     * @return The Where clause if filtering is needed, null if access is allowed without filter
+     * @throws AccessDeniedException if access is denied
+     */
+    fun checkDynamicAccess(
+        accessFn: AccessFunction,
+        id: Any? = null,
+        doc: Any? = null
+    ): Where? {
+        val result = evaluateAccess(accessFn, id, doc)
+        return when (result) {
+            is AccessResult.Allow -> null
+            is AccessResult.Deny -> throw AccessDeniedException("Access denied")
+            is AccessResult.Filter -> result.where
+        }
+    }
+
+    /**
+     * Builds an AccessContext from the current security context.
+     */
+    fun buildAccessContext(
+        id: Any? = null,
+        doc: Any? = null,
+        customData: Map<String, Any?> = emptyMap()
+    ): AccessContext {
+        val auth = SecurityContextHolder.getContext().authentication
+        val isAuthenticated = auth != null && auth.isAuthenticated && auth.principal != "anonymousUser"
+
+        return AccessContext(
+            userId = if (isAuthenticated) getUserIdFromPrincipal(auth?.principal) else null,
+            username = if (isAuthenticated) auth?.name else null,
+            roles = if (isAuthenticated) {
+                auth?.authorities?.map { it.authority.removePrefix("ROLE_") } ?: emptyList()
+            } else emptyList(),
+            id = id,
+            doc = doc,
+            customData = customData
+        )
+    }
+
+    /**
+     * Extract user ID from the security principal.
+     * Override this if your user principal has a different structure.
+     */
+    private fun getUserIdFromPrincipal(principal: Any?): Any? {
+        return when (principal) {
+            is String -> principal
+            is org.springframework.security.core.userdetails.UserDetails -> principal.username
+            else -> principal?.toString()
+        }
+    }
+
     /**
      * Gets the current authenticated user's username, or null if not authenticated.
      */
@@ -66,7 +145,7 @@ object AuthUtil {
             auth.name
         } else null
     }
-    
+
     /**
      * Gets the current user's roles.
      */
